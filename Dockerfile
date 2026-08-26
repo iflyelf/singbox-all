@@ -6,20 +6,21 @@
 #   守护: supervisord (PID1) 统一管理全部进程, 进程间走 127.0.0.1 loopback
 # =============================================================================
 
+# 全局 ARG: 复用的现成镜像 (须在第一个 FROM 之前声明, 才能被各 FROM 引用)
+# 可通过 --build-arg NGINX_IMAGE=... / SINGBOX_IMAGE=... 覆盖
+ARG NGINX_IMAGE=iflyelf/nginx:latest
+ARG SINGBOX_IMAGE=iflyelf/sing-box:latest
+
 #############################
 #   Stage: nginxstage       #
 #   复用 iflyelf/nginx 现成的 coraza nginx 编译产物, 不重新编译
-#   可通过 --build-arg NGINX_IMAGE=... 覆盖
 #############################
-ARG NGINX_IMAGE=iflyelf/nginx:latest
 FROM ${NGINX_IMAGE} AS nginxstage
 
 #############################
 #   Stage: singboxstage     #
 #   复用 iflyelf/sing-box 现成的 sing-box 编译产物, 不重新编译
-#   可通过 --build-arg SINGBOX_IMAGE=... 覆盖
 #############################
-ARG SINGBOX_IMAGE=iflyelf/sing-box:latest
 FROM ${SINGBOX_IMAGE} AS singboxstage
 
 #############################
