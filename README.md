@@ -136,6 +136,49 @@ docker compose logs | grep 'webui listening'
 
 在 Cloudflare Zero Trust 面板给隧道添加一条 Public Hostname，指向 `http://127.0.0.1:8787`，建议再叠加 Cloudflare Access 做二次鉴权。
 
+**方式三：临时直接暴露到公网（容器内操作，不改镜像）**
+
+临时把管理台改为监听 `0.0.0.0`，在容器内重启 conduitvpn 即可，无需重建容器：
+
+```bash
+docker exec singbox sh -c '
+supervisorctl stop conduitvpn
+sleep 2
+UI_HOST=0.0.0.0 \
+LOCAL_PROXY_HOST=127.0.0.1 \
+NETWORK_MODE=host \
+UI_USER=admin \
+UI_PASSWORD="Chqmyg#2024Moon!" \
+LOCAL_PROXY_USER=proxy \
+LOCAL_PROXY_PASS="Chqmyg#2024Moon!" \
+HY2_PORT=0 \
+nohup /usr/bin/conduitvpn --data-dir /data/conduitvpn > /tmp/conduit-manual.log 2>&1 &
+sleep 8
+ss -lntp | grep ":8787" || true
+grep "webui listening" /tmp/conduit-manual.log | tail -1
+'
+```
+
+确认监听为 `0.0.0.0:8787` 后，浏览器访问：
+
+```
+http://服务器公网IP:8787/<日志里的随机path>/
+```
+
+随机路径从日志获取：
+
+```bash
+docker logs singbox | grep "webui listening"
+```
+
+⚠️ 此方式把管理台暴露在公网所有网卡，仅靠密码保护。用完立即恢复为仅本机监听：
+
+```bash
+docker exec singbox supervisorctl restart conduitvpn
+```
+
+（supervisor 重启会用回容器默认的 `UI_HOST=127.0.0.1`，仅本机可达。）
+
 管理台可以查看当前住宅 IP、节点延迟、切换指定国家或锁定节点、查看实时日志。
 
 ### 验证出口是否为住宅 IP
