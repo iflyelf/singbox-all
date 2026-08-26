@@ -141,9 +141,10 @@ docker compose logs | grep 'webui listening'
 ### 验证出口是否为住宅 IP
 
 ```bash
-docker exec singbox curl -s \
-  --socks5 "proxy:你的LOCAL_PROXY_PASS@127.0.0.1:7928" \
-  https://api.ipify.org
+docker exec singbox sh -c \
+  'curl -fsS --socks5-hostname 127.0.0.1:7928 \
+  --proxy-user "$LOCAL_PROXY_USER:$LOCAL_PROXY_PASS" \
+  https://api.ipify.org'
 ```
 
 返回的应是 VPNGate 节点 IP，而非你服务器的 IP。
@@ -248,6 +249,30 @@ TROJAN_WSPATH=/xiaonuo/trojan
 
 代理流量出站只走 conduitvpn，**隧道不可用时连接会失败而不会退回服务器本机 IP**，这是防止真实 IP 泄漏的预期行为。
 
+### 选择 VPNGate 不可用时的回落方式
+
+默认配置为只使用 conduitvpn：
+
+```env
+SINGBOX_FALLBACK=none
+```
+
+此模式下 VPNGate 隧道不可用时，客户端连接会失败，但不会使用香港云主机的直连出口。
+
+如果希望 VPNGate 不可用时仍能访问网络，可以改为：
+
+```env
+SINGBOX_FALLBACK=direct
+```
+
+此模式会为 sing-box 增加 `direct` 出站，并通过 `urltest` 在 conduitvpn 与直连之间选择可用线路。开启后可能选择香港云主机直连，因此**不再保证出口始终是住宅 IP**。
+
+修改后重新创建容器：
+
+```bash
+docker compose up -d --force-recreate
+```
+
 ---
 
 ## 六、配置项速查
@@ -262,6 +287,7 @@ TROJAN_WSPATH=/xiaonuo/trojan
 | `UI_HOST` | 127.0.0.1 | 管理台监听地址 |
 | `LOCAL_PROXY_USER` / `LOCAL_PROXY_PASS` | proxy / — | 本地代理凭据（密码 ≥16 字符） |
 | `LOCAL_PROXY_HOST` / `LOCAL_PROXY_PORT` | 127.0.0.1 / 7928 | 本地代理监听 |
+| `SINGBOX_FALLBACK` | none | `none` 只走住宅IP；`direct` 允许直连回落 |
 | `NGINX_LISTEN` | 127.0.0.1 | nginx 监听地址，`0.0.0.0` 开放公网 |
 | `NGINX_PORT` | 80 | nginx 对外端口，冲突时可改，cloudflared 自动跟随 |
 | `NETWORK_MODE` | host | conduitvpn 路由模式，host 网络下须为 host |

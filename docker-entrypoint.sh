@@ -25,6 +25,8 @@ set -e
 : "${LOCAL_PROXY_PORT:=7928}"
 : "${LOCAL_PROXY_USER:=proxy}"
 : "${LOCAL_PROXY_PASS:=Chqmyg#2024Moon!}"
+# 出站回落策略: none=只走住宅IP, direct=VPNGate不可用时允许直连测速选择
+: "${SINGBOX_FALLBACK:=none}"
 # nginx 监听地址: 127.0.0.1 仅本机(供 cloudflared 隧道回源, 不开放公网);
 #                0.0.0.0  开放公网直连
 : "${NGINX_LISTEN:=127.0.0.1}"
@@ -33,8 +35,40 @@ set -e
 
 mkdir -p /etc/sing-box
 
-# ---- 公共出站: 统一走 conduitvpn 住宅IP, 不回落 direct (死守住宅IP) ----------
-read -r -d '' OUTBOUNDS <<EOF || true
+# ---- 公共出站 ---------------------------------------------------------------
+if [ "${SINGBOX_FALLBACK}" = "direct" ]; then
+    # urltest 会在 conduitvpn 与 direct 之间选择健康且延迟较低的出站。
+    # 这不是严格优先级回落: 开启后可能选择 direct, 因此会失去住宅IP保证。
+    read -r -d '' OUTBOUNDS <<EOF || true
+    "outbounds":[
+        {
+            "type":"socks",
+            "tag":"conduit-out",
+            "server":"${LOCAL_PROXY_HOST}",
+            "server_port":${LOCAL_PROXY_PORT},
+            "version":"5",
+            "username":"${LOCAL_PROXY_USER}",
+            "password":"${LOCAL_PROXY_PASS}"
+        },
+        {
+            "type":"direct",
+            "tag":"direct"
+        },
+        {
+            "type":"urltest",
+            "tag":"auto",
+            "outbounds":["conduit-out","direct"],
+            "url":"https://www.gstatic.com/generate_204",
+            "interval":"1m",
+            "tolerance":50
+        }
+    ],
+    "route":{
+        "final":"auto"
+    }
+EOF
+else
+    read -r -d '' OUTBOUNDS <<EOF || true
     "outbounds":[
         {
             "type":"socks",
@@ -50,6 +84,7 @@ read -r -d '' OUTBOUNDS <<EOF || true
         "final":"conduit-out"
     }
 EOF
+fi
 
 # ---- 生成 vmess 配置 --------------------------------------------------------
 cat <<-EOF > /etc/sing-box/vmess.json
