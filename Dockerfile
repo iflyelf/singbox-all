@@ -209,8 +209,9 @@ RUN set -eux && \
     # nginx 配置自检
     nginx -t || true
 
-# ***** 端口 *****
-# 80: cloudflared 回源 / 直连; 8787: conduitvpn 管理台; 7928: 本地代理(仅容器内)
+# ***** 端口 (host 网络模式下 EXPOSE 仅作文档说明) *****
+# 80: nginx (NGINX_LISTEN 控制回环/公网); 8787: conduitvpn 管理台(默认回环)
+# 7928: 本地代理(回环); 入口默认统一走 cloudflared 隧道
 EXPOSE 80 8787
 
 WORKDIR /etc/sing-box

@@ -1,15 +1,16 @@
 # =============================================================================
-# vmess / trojan WebSocket 反向代理 (all-in-one 单容器, 走 127.0.0.1)
+# vmess / trojan WebSocket 反向代理  (模板, 由 docker-entrypoint.sh 渲染)
+#   占位符: __NGINX_LISTEN__ / __VMESS_PORT__ / __TROJAN_PORT__
+#           __VMESS_WSPATH__ / __TROJAN_WSPATH__
+#   NGINX_LISTEN=127.0.0.1 时仅本机(供 cloudflared 回源); 0.0.0.0 时开放公网直连
 # =============================================================================
 
 # 上游: 同容器内 sing-box 监听端口
-upstream vmess  { server 127.0.0.1:6601 max_fails=0 fail_timeout=0; }
-upstream trojan { server 127.0.0.1:6602 max_fails=0 fail_timeout=0; }
+upstream vmess  { server 127.0.0.1:__VMESS_PORT__ max_fails=0 fail_timeout=0; }
+upstream trojan { server 127.0.0.1:__TROJAN_PORT__ max_fails=0 fail_timeout=0; }
 
-# 按 WS path 前缀分流 (path 已含 /xiaonuo 前缀, 与 sing-box 服务端对齐, 不 strip)
 server {
-    listen 80;
-    listen [::]:80;
+    listen __NGINX_LISTEN__:80;
     server_name _;
     charset utf-8;
 
@@ -21,8 +22,8 @@ server {
     access_log logs/default.log combined;
     error_log  logs/default.log error;
 
-    # vmess WebSocket
-    location = /xiaonuo/vmess {
+    # vmess WebSocket (path 与 sing-box 服务端一致, 不 strip 前缀)
+    location = __VMESS_WSPATH__ {
         include websocket.conf;
         proxy_pass http://vmess;
         access_log logs/xiaonuo.log combined;
@@ -30,7 +31,7 @@ server {
     }
 
     # trojan WebSocket
-    location = /xiaonuo/trojan {
+    location = __TROJAN_WSPATH__ {
         include websocket.conf;
         proxy_pass http://trojan;
         access_log logs/xiaonuo.log combined;

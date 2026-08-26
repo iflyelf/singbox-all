@@ -25,6 +25,9 @@ set -e
 : "${LOCAL_PROXY_PORT:=7928}"
 : "${LOCAL_PROXY_USER:=proxy}"
 : "${LOCAL_PROXY_PASS:=Chqmyg#2024Moon!}"
+# nginx 监听地址: 127.0.0.1 仅本机(供 cloudflared 隧道回源, 不开放公网);
+#                0.0.0.0  开放公网直连 80 端口
+: "${NGINX_LISTEN:=127.0.0.1}"
 
 mkdir -p /etc/sing-box
 
@@ -103,6 +106,19 @@ cat <<-EOF > /etc/sing-box/trojan.json
 ${OUTBOUNDS}
 }
 EOF
+
+# ---- 渲染 nginx vhost (监听地址 / 端口 / WS 路径) ----------------------------
+VHOST_TPL=/data/nginx/conf/vhost/default.conf.template
+VHOST_OUT=/data/nginx/conf/vhost/default.conf
+if [ -f "${VHOST_TPL}" ]; then
+    sed -e "s|__NGINX_LISTEN__|${NGINX_LISTEN}|g" \
+        -e "s|__VMESS_PORT__|${VMESS_PORT}|g" \
+        -e "s|__TROJAN_PORT__|${TROJAN_PORT}|g" \
+        -e "s|__VMESS_WSPATH__|${VMESS_WSPATH}|g" \
+        -e "s|__TROJAN_WSPATH__|${TROJAN_WSPATH}|g" \
+        "${VHOST_TPL}" > "${VHOST_OUT}"
+    echo "[entrypoint] nginx vhost 渲染完成 (listen ${NGINX_LISTEN}:80)"
+fi
 
 # ---- 渲染 WAF 域名放行规则 --------------------------------------------------
 if [ -x /data/nginx/conf/waf/render-waf.sh ]; then
