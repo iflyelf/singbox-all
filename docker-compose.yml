@@ -1,45 +1,70 @@
 # =============================================================================
 # singbox-all 单容器编排 (host 网络模式)
-#   一个容器内经 supervisor 守护: sing-box(vmess/trojan) + conduitvpn
-#   + cloudflared + nginx(coraza WAF)
-#   直接使用已构建镜像 iflyelf/singbox-all:latest
-#   启动: docker compose up -d   更新: docker compose pull && docker compose up -d
+#
+#   单个容器内由 supervisor 统一守护以下进程, 进程间通过 127.0.0.1 互通:
+#     - conduitvpn   VPNGate 住宅IP 出口 (socks5 :7928 / 管理台 :8787)
+#     - sing-box     vmess (:6601) / trojan (:6602) 入站, 出站走 conduitvpn
+#     - nginx        coraza WAF + WebSocket 反代 (:80)
+#     - cloudflared  Cloudflare 隧道入口 (出站连接, 无需开放入站端口)
+#
+#   直接使用已构建镜像, 无需本地编译。
+#     启动: docker compose up -d
+#     更新: docker compose pull && docker compose up -d
 # =============================================================================
 services:
   singbox:
+    # 已构建好的融合镜像 (由 GitHub Action 多架构发布: amd64 / arm64)
     image: iflyelf/singbox-all:latest
+    # 容器名, 便于 docker exec / docker logs 直接引用
     container_name: singbox
-    hostname: singbox
+    # 分配伪终端, 便于 docker exec 交互调试
     tty: true
+    # 保持标准输入打开
     stdin_open: true
+    # 容器异常退出或宿主重启后始终自动拉起
     restart: always
-    # host 网络模式: 容器直接使用宿主机网络栈, 无需 iptables NAT / 端口映射
-    #   nginx:80 / conduitvpn:8787 / 7928 直接监听宿主机对应端口
+
+    # host 网络模式: 容器直接共享宿主机网络栈
+    #   优点: 无需 iptables NAT / 端口映射, 规避 bridge 网络无出口的问题
+    #   注意: 各服务监听地址由 .env 控制 (NGINX_LISTEN / UI_HOST / LOCAL_PROXY_HOST),
+    #         默认全部为 127.0.0.1, 不对公网暴露任何端口
     network_mode: host
-    # root 运行 + 特权 (住宅IP出口需创建 TUN 设备 + 修改路由)
+
+    # 以 root 运行: conduitvpn 需创建 TUN 设备并调整策略路由
     user: root
+    # 特权模式 + 全部内核能力: 同上, 建立 VPN 隧道所需
     privileged: true
     cap_add:
       - ALL
+    # 映射 TUN 设备 (OpenVPN 建立隧道的前提)
     devices:
       - /dev/net/tun
+
+    # 环境变量集中在 .env 中维护 (端口 / 密码 / 监听地址 / 隧道 token 等)
     env_file:
       - .env
+
     volumes:
-      # conduitvpn 持久化 (VPNGate 节点 / 状态 / 生成的链接订阅)
+      # conduitvpn 持久化: VPNGate 节点列表、黑名单、运行状态,
+      # 以及 gen-links.sh 生成的 links.txt / sub.txt
       - ./data:/data/conduitvpn:rw
-      # nginx 日志
+      # nginx 访问与错误日志
       - ./logs/nginx:/data/nginx/logs:delegated
-      # 同步宿主机时区
+      # 与宿主机保持一致的时区
       - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
       - /etc/localtime:/etc/localtime:ro
+
     healthcheck:
-      # 探测 conduitvpn 健康端点, 失败由 supervisor autorestart + restart:always 兜底
+      # 探测 conduitvpn 免鉴权健康端点
+      # 进程级自愈由 supervisor autorestart 负责, 容器级由 restart: always 兜底
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8787/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
+      # 首次启动需拉取并测速 VPNGate 节点, 预留较长宽限期
       start_period: 90s
+
+    # 放宽进程数与文件描述符上限 (高并发代理场景)
     ulimits:
       nproc: 65535
       nofile:
