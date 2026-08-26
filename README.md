@@ -292,23 +292,23 @@ TROJAN_WSPATH=/xiaonuo/trojan
 
 代理流量出站只走 conduitvpn，**隧道不可用时连接会失败而不会退回服务器本机 IP**，这是防止真实 IP 泄漏的预期行为。
 
-### 选择 VPNGate 不可用时的回落方式
+### 选择出站模式
 
-默认配置为只使用 conduitvpn：
+默认只走 conduitvpn 住宅 IP：
 
 ```env
 SINGBOX_FALLBACK=none
 ```
 
-此模式下 VPNGate 隧道不可用时，客户端连接会失败，但不会使用香港云主机的直连出口。
+此模式下所有流量经 VPNGate 住宅 IP 出口；VPNGate 不可用时连接失败，绝不使用香港云主机直连，防止真实 IP 泄漏。
 
-如果希望 VPNGate 不可用时仍能访问网络，可以改为：
+如果要直接使用香港云主机线路（不经 VPNGate），改为：
 
 ```env
 SINGBOX_FALLBACK=direct
 ```
 
-此模式会为 sing-box 增加 `direct` 出站，并通过 `urltest` 在 conduitvpn 与直连之间选择可用线路。开启后可能选择香港云主机直连，因此**不再保证出口始终是住宅 IP**。
+此模式为**纯直连**：出站只有 `direct`，直接走香港云主机公网 IP，完全不连 conduitvpn/VPNGate，也没有 urltest 选路。出口即香港云主机 IP，**不是住宅 IP**。
 
 修改后重新创建容器：
 
@@ -330,7 +330,7 @@ docker compose up -d --force-recreate
 | `UI_HOST`                                 | 127.0.0.1                 | 管理台监听地址                                   |
 | `LOCAL_PROXY_USER` / `LOCAL_PROXY_PASS` | proxy / —                | 本地代理凭据（密码 ≥16 字符）                   |
 | `LOCAL_PROXY_HOST` / `LOCAL_PROXY_PORT` | 127.0.0.1 / 7928          | 本地代理监听                                     |
-| `SINGBOX_FALLBACK`                        | none                      | `none` 只走住宅IP；`direct` 允许直连回落     |
+| `SINGBOX_FALLBACK`                        | none                      | `none` 只走住宅IP；`direct` 纯直连(本机IP)   |
 | `NGINX_LISTEN`                            | 127.0.0.1                 | nginx 监听地址，`0.0.0.0` 开放公网             |
 | `NGINX_PORT`                              | 80                        | nginx 对外端口，冲突时可改，cloudflared 自动跟随 |
 | `NETWORK_MODE`                            | host                      | conduitvpn 路由模式，host 网络下须为 host        |

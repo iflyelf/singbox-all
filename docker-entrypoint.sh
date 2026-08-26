@@ -37,37 +37,21 @@ mkdir -p /etc/sing-box
 
 # ---- 公共出站 ---------------------------------------------------------------
 if [ "${SINGBOX_FALLBACK}" = "direct" ]; then
-    # urltest 会在 conduitvpn 与 direct 之间选择健康且延迟较低的出站。
-    # 这不是严格优先级回落: 开启后可能选择 direct, 因此会失去住宅IP保证。
+    # direct: 纯直连, 直接走宿主机线路, 不经 conduitvpn/VPNGate。
+    # 出站不再是住宅IP, 而是本机(香港主机)公网IP。
     read -r -d '' OUTBOUNDS <<EOF || true
     "outbounds":[
         {
-            "type":"socks",
-            "tag":"conduit-out",
-            "server":"${LOCAL_PROXY_HOST}",
-            "server_port":${LOCAL_PROXY_PORT},
-            "version":"5",
-            "username":"${LOCAL_PROXY_USER}",
-            "password":"${LOCAL_PROXY_PASS}"
-        },
-        {
             "type":"direct",
             "tag":"direct"
-        },
-        {
-            "type":"urltest",
-            "tag":"auto",
-            "outbounds":["conduit-out","direct"],
-            "url":"https://www.gstatic.com/generate_204",
-            "interval":"1m",
-            "tolerance":50
         }
     ],
     "route":{
-        "final":"auto"
+        "final":"direct"
     }
 EOF
 else
+    # none: 只走 conduitvpn 住宅IP, VPNGate 不可用时连接失败, 不泄漏本机IP。
     read -r -d '' OUTBOUNDS <<EOF || true
     "outbounds":[
         {
