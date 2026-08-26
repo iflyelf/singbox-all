@@ -19,6 +19,9 @@ set -e
 : "${TROJAN_PWD:=ysyh!9Sky}"
 : "${TROJAN_WSPATH:=/xiaonuo/trojan}"
 : "${LOCAL_PROXY_HOST:=127.0.0.1}"
+# sing-box 入站监听地址: host 网络模式下默认仅回环, 由同网络栈内的 nginx 反代,
+# 无需对外暴露 6601/6602 (入口统一走 cloudflared 隧道)
+: "${SINGBOX_LISTEN:=127.0.0.1}"
 : "${LOCAL_PROXY_PORT:=7928}"
 : "${LOCAL_PROXY_USER:=proxy}"
 : "${LOCAL_PROXY_PASS:=Chqmyg#2024Moon!}"
@@ -51,7 +54,7 @@ cat <<-EOF > /etc/sing-box/vmess.json
         {
             "type":"vmess",
             "tag":"vmess-in",
-            "listen":"::",
+            "listen":"${SINGBOX_LISTEN}",
             "listen_port":${VMESS_PORT},
             "tcp_fast_open":true,
             "udp_fragment":true,
@@ -80,7 +83,7 @@ cat <<-EOF > /etc/sing-box/trojan.json
         {
             "type":"trojan",
             "tag":"trojan-in",
-            "listen":"::",
+            "listen":"${SINGBOX_LISTEN}",
             "listen_port":${TROJAN_PORT},
             "tcp_fast_open":true,
             "udp_fragment":true,
