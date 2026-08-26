@@ -112,7 +112,9 @@ ENV DEBIAN_FRONTEND=$DEBIAN_FRONTEND
 ARG NGINX_DIR=/data/nginx
 ENV NGINX_DIR=$NGINX_DIR
 
-# 运行时依赖: 基础工具 + supervisor + nginx/coraza 运行库
+# 运行时依赖: 以 nginx-docker 已验证的依赖包为准, 另加 supervisor/openvpn。
+# 使用 *-dev 包是为了复用 nginx-docker 在 ubuntu:resolute 中验证过的包名;
+# 它们同时提供 nginx/coraza 所需的运行库, 避免使用 resolute 中不存在的旧包名。
 ARG PKG_DEPS="\
     bash \
     ca-certificates \
@@ -126,18 +128,18 @@ ARG PKG_DEPS="\
     procps \
     psmisc \
     lsof \
+    python3 \
     supervisor \
     coreutils \
     gettext-base \
     openvpn \
-    libpcre2-8-0 \
-    libxml2 \
-    libxslt1.1 \
-    libgd3 \
-    libgeoip1t64 \
-    libmecab2 \
-    zlib1g \
-    libssl3 \
+    libssl-dev \
+    zlib1g-dev \
+    libpcre2-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libgd-dev \
+    libgeoip-dev \
     locales"
 ENV PKG_DEPS=$PKG_DEPS
 
@@ -218,4 +220,3 @@ EXPOSE 80 8787
 WORKDIR /etc/sing-box
 STOPSIGNAL SIGQUIT
 ENTRYPOINT ["docker-entrypoint.sh"]
-
