@@ -38,7 +38,7 @@ mkdir -p /etc/sing-box
 # ---- 公共出站 ---------------------------------------------------------------
 if [ "${SINGBOX_FALLBACK}" = "direct" ]; then
     # direct: 纯直连, 直接走宿主机线路, 不经 conduitvpn/VPNGate。
-    # 出站不再是住宅IP, 而是本机(香港主机)公网IP。
+    # 出站不再是住宅IP, 而是本机公网IP。
     read -r -d '' OUTBOUNDS <<EOF || true
     "outbounds":[
         {

@@ -300,15 +300,15 @@ TROJAN_WSPATH=/xiaonuo/trojan
 SINGBOX_FALLBACK=none
 ```
 
-此模式下所有流量经 VPNGate 住宅 IP 出口；VPNGate 不可用时连接失败，绝不使用香港云主机直连，防止真实 IP 泄漏。
+此模式下所有流量经 VPNGate 住宅 IP 出口；VPNGate 不可用时连接失败，绝不使用本机直连，防止真实 IP 泄漏。
 
-如果要直接使用香港云主机线路（不经 VPNGate），改为：
+如果要直接使用本机线路（不经 VPNGate），改为：
 
 ```env
 SINGBOX_FALLBACK=direct
 ```
 
-此模式为**纯直连**：出站只有 `direct`，直接走香港云主机公网 IP，完全不连 conduitvpn/VPNGate，也没有 urltest 选路。出口即香港云主机 IP，**不是住宅 IP**。
+此模式为**纯直连**：出站只有 `direct`，直接走本机公网 IP，完全不连 conduitvpn/VPNGate，也没有 urltest 选路。出口即本机 IP，**不是住宅 IP**。
 
 修改后重新创建容器：
 
