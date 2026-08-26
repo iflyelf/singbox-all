@@ -130,6 +130,7 @@ ARG PKG_DEPS="\
     supervisor \
     coreutils \
     gettext-base \
+    openvpn \
     libpcre2-8-0 \
     libxml2 \
     libxslt1.1 \

@@ -1,28 +1,28 @@
 # =============================================================================
-# sing-box all-in-one 单容器编排
+# singbox-all 单容器编排 (host 网络模式)
 #   一个容器内经 supervisor 守护: sing-box(vmess/trojan) + conduitvpn
 #   + cloudflared + nginx(coraza WAF)
-#   构建: docker compose build   启动: docker compose up -d
+#   直接使用已构建镜像 iflyelf/singbox-all:latest
+#   启动: docker compose up -d   更新: docker compose pull && docker compose up -d
 # =============================================================================
 services:
   singbox:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: iflyelf/singbox-all:latest
     container_name: singbox
     hostname: singbox
     tty: true
     stdin_open: true
     restart: always
-    # 住宅IP出口需要创建 TUN 设备 + 修改路由, 需特权
+    # host 网络模式: 容器直接使用宿主机网络栈, 无需 iptables NAT / 端口映射
+    #   nginx:80 / conduitvpn:8787 / 7928 直接监听宿主机对应端口
+    network_mode: host
+    # root 运行 + 特权 (住宅IP出口需创建 TUN 设备 + 修改路由)
+    user: root
     privileged: true
     cap_add:
       - ALL
     devices:
       - /dev/net/tun
-    sysctls:
-      - net.ipv4.ip_forward=1
     env_file:
       - .env
     volumes:
@@ -33,11 +33,6 @@ services:
       # 同步宿主机时区
       - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
       - /etc/localtime:/etc/localtime:ro
-    ports:
-      # cloudflared quick tunnel 回源 / 也可直连 (HTTP, 无 SSL)
-      - "80:80"
-      # conduitvpn 管理台: 仅暴露宿主机回环, 不对公网开放
-      - "127.0.0.1:8787:8787"
     healthcheck:
       # 探测 conduitvpn 健康端点, 失败由 supervisor autorestart + restart:always 兜底
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8787/healthz"]
