@@ -130,4 +130,5 @@ fi
 
 # ---- 启动 supervisord (前台, PID1) ------------------------------------------
 echo "[entrypoint] 启动 supervisord ..."
-exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
+# -n 同时作为命令行兜底，防止配置文件中的 nodaemon 设置被覆盖为后台模式。
+exec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf

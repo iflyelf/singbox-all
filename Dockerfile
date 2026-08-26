@@ -128,6 +128,7 @@ ARG PKG_DEPS="\
     procps \
     psmisc \
     lsof \
+    adduser \
     python3 \
     supervisor \
     coreutils \
@@ -195,9 +196,9 @@ COPY ["./conf/nginx/waf/render-waf.sh",           "/data/nginx/conf/waf/render-w
 RUN set -eux && \
     # 注册 libcoraza.so 到动态链接库缓存
     ldconfig && \
-    # nginx 用户
-    (addgroup --system --quiet nginx || true) && \
-    (adduser --quiet --system --disabled-login --ingroup nginx --home /data/nginx --no-create-home nginx || true) && \
+    # nginx 用户 (nginx.conf 使用 user nginx nginx)
+    addgroup --system --quiet nginx && \
+    adduser --quiet --system --disabled-login --ingroup nginx --home /data/nginx --no-create-home nginx && \
     # sbin 软链
     ln -sf ${NGINX_DIR}/sbin/* /usr/sbin/ && \
     # 日志目录与转发
@@ -210,7 +211,8 @@ RUN set -eux && \
               /data/nginx/conf/waf/render-waf.sh && \
     # 关键二进制自检: 缺失则直接让构建失败, 避免静默发布坏镜像
     command -v supervisord && command -v openvpn && command -v nginx && \
-    command -v sing-box && command -v conduitvpn && command -v cloudflared
+    command -v sing-box && command -v conduitvpn && command -v cloudflared && \
+    getent passwd nginx && getent group nginx
 
 # ***** 端口 (host 网络模式下 EXPOSE 仅作文档说明) *****
 # 80: nginx (NGINX_LISTEN 控制回环/公网); 8787: conduitvpn 管理台(默认回环)
