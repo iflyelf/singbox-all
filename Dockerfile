@@ -61,8 +61,7 @@ ARG PKG_DEPS="git curl wget ca-certificates build-essential pkg-config"
 ENV PKG_DEPS=$PKG_DEPS
 
 # ***** 安装构建依赖 *****
-RUN --mount=type=cache,target=/var/lib/apt/,sharing=locked \
-    set -eux && \
+RUN set -eux && \
     sed -i 's@URIs: http://[a-z.]*\.ubuntu\.com/ubuntu/@URIs: https://mirrors.aliyun.com/ubuntu/@g' /etc/apt/sources.list.d/ubuntu.sources && \
     touch /etc/apt/apt.conf.d/99verify-peer.conf && echo >>/etc/apt/apt.conf.d/99verify-peer.conf "Acquire { https::Verify-Peer false }" && \
     apt-get update -qqy && apt-get install -qqy --no-install-recommends $PKG_DEPS && \
@@ -142,8 +141,9 @@ ARG PKG_DEPS="\
     locales"
 ENV PKG_DEPS=$PKG_DEPS
 
-RUN --mount=type=cache,target=/var/lib/apt/,sharing=locked \
-    set -eux && \
+# 不使用 apt cache mount: 多架构并发 + sharing=locked 会导致 lists 索引不完整,
+# 曾出现 "Package has no installation candidate" 而 supervisor/openvpn 静默漏装。
+RUN set -eux && \
     sed -i 's@URIs: http://[a-z.]*\.ubuntu\.com/ubuntu/@URIs: https://mirrors.aliyun.com/ubuntu/@g' /etc/apt/sources.list.d/ubuntu.sources && \
     touch /etc/apt/apt.conf.d/99verify-peer.conf && echo >>/etc/apt/apt.conf.d/99verify-peer.conf "Acquire { https::Verify-Peer false }" && \
     apt-get update -qqy && apt-get upgrade -qqy && \
@@ -152,7 +152,7 @@ RUN --mount=type=cache,target=/var/lib/apt/,sharing=locked \
     apt-get -qqy --no-install-recommends autoclean && \
     rm -rf /var/lib/apt/lists/* && \
     ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone && \
-    locale-gen zh_CN.UTF-8 && localedef -f UTF-8 -i zh_CN zh_CN.UTF-8 || true
+    ( locale-gen zh_CN.UTF-8 && localedef -f UTF-8 -i zh_CN zh_CN.UTF-8 || true )
 
 # ***** 拷贝编译产物 *****
 # sing-box: 复用 iflyelf/sing-box 现成产物, 不重新编译
@@ -206,8 +206,9 @@ RUN set -eux && \
     chmod a+x /usr/bin/docker-entrypoint.sh /usr/bin/gen-links.sh /usr/bin/cloudflared-run.sh \
               /usr/bin/sing-box /usr/bin/conduitvpn /usr/bin/cloudflared \
               /data/nginx/conf/waf/render-waf.sh && \
-    # nginx 配置自检
-    nginx -t || true
+    # 关键二进制自检: 缺失则直接让构建失败, 避免静默发布坏镜像
+    command -v supervisord && command -v openvpn && command -v nginx && \
+    command -v sing-box && command -v conduitvpn && command -v cloudflared
 
 # ***** 端口 (host 网络模式下 EXPOSE 仅作文档说明) *****
 # 80: nginx (NGINX_LISTEN 控制回环/公网); 8787: conduitvpn 管理台(默认回环)
