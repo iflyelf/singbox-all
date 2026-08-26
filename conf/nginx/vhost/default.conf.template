@@ -5,9 +5,18 @@
 #   NGINX_LISTEN=127.0.0.1 时仅本机(供 cloudflared 回源); 0.0.0.0 时开放公网直连
 # =============================================================================
 
-# 上游: 同容器内 sing-box 监听端口
-upstream vmess  { server 127.0.0.1:__VMESS_PORT__ max_fails=0 fail_timeout=0; }
-upstream trojan { server 127.0.0.1:__TROJAN_PORT__ max_fails=0 fail_timeout=0; }
+# 上游后端服务 (同容器内 sing-box, 走 127.0.0.1)
+upstream vmess-splitflow  { server 127.0.0.1:__VMESS_PORT__ max_fails=0 fail_timeout=0; }
+upstream trojan-splitflow { server 127.0.0.1:__TROJAN_PORT__ max_fails=0 fail_timeout=0; }
+
+# 分流
+#   用 $uri 而非 $request_uri: $request_uri 含查询串, 客户端携带
+#   早期数据参数(如 ?ed=2048) 时会匹配失败; $uri 为解码后的纯路径.
+map $uri $svc_upstream {
+    default                "";
+    __VMESS_WSPATH__       vmess-splitflow;
+    __TROJAN_WSPATH__      trojan-splitflow;
+}
 
 server {
     listen __NGINX_LISTEN__:80;
@@ -22,20 +31,25 @@ server {
     access_log logs/default.log combined;
     error_log  logs/default.log error;
 
-    # vmess WebSocket (path 与 sing-box 服务端一致, 不 strip 前缀)
-    location = __VMESS_WSPATH__ {
+    # WebSocket 分流入口
+    #   命中 map -> 反代到对应 sing-box; 未命中 -> 418 内部跳转到 @static 走静态站点.
+    #   (if 内仅用 return, 属 nginx 官方认可的 "if is safe" 用法, 避开 if+proxy_pass 陷阱)
+    location / {
+        error_page 418 = @static;
+        recursive_error_pages on;
+
+        if ($svc_upstream = "") { return 418; }
+
         include websocket.conf;
-        proxy_pass http://vmess;
+        proxy_pass http://$svc_upstream;
+
         access_log logs/xiaonuo.log combined;
         error_log  logs/xiaonuo.log error;
     }
 
-    # trojan WebSocket
-    location = __TROJAN_WSPATH__ {
-        include websocket.conf;
-        proxy_pass http://trojan;
-        access_log logs/xiaonuo.log combined;
-        error_log  logs/xiaonuo.log error;
+    # 静态站点回退
+    location @static {
+        try_files $uri $uri/ =404;
     }
 
     # 隐藏敏感文件
