@@ -292,6 +292,7 @@ docker compose up -d --force-recreate
 | `NGINX_PORT`                              | 80                        | nginx 对外端口，冲突时可改，cloudflared 自动跟随 |
 | `NETWORK_MODE`                            | host                      | conduitvpn 路由模式，host 网络下须为 host        |
 | `TUNNEL_TOKEN`                            | 空                        | 留空走 quick tunnel，填值走命名隧道              |
-| `LINK_DOMAIN`                             | 空                        | 留空自动抓取隧道域名，填值优先使用               |
+| `LINK_DOMAIN`                             | 空                        | 隧道域名（host/sni），留空自动抓取，填值优先使用 |
+| `PREFER_DOMAIN`                           | 空                        | 优选域名，填值后连接地址走 Cloudflare 优选 IP    |
 | `WAF_ALLOW_DOMAINS`                       | 空                        | WAF 放行域名，逗号分隔                           |
 | `HY2_PORT`                                | 0                         | hysteria2，隧道不支持 UDP 故关闭                 |
