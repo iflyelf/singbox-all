@@ -87,6 +87,7 @@ jobs:
         push: true
         build-args: |
           NGINX_IMAGE=${{ secrets.DOCKER_USERNAME }}/nginx:latest
+          SINGBOX_IMAGE=${{ secrets.DOCKER_USERNAME }}/sing-box:latest
         tags: ${{ secrets.DOCKER_USERNAME }}/singbox-all:${{ matrix.DOCKER_TAG }}
 
     - name: 删除旧的GitHub-workflow

@@ -1,8 +1,8 @@
 # =============================================================================
-# sing-box all-in-one 单容器融合镜像
-#   基底: iflyelf/sing-box 风格 (ubuntu:resolute + supervisor)
-#   集成: sing-box(vmess/trojan) + conduitvpn(住宅IP出口) + cloudflared(隧道入口)
-#         + nginx(coraza WAF, 复用 iflyelf/nginx 现成编译产物)
+# singbox-all 单容器融合镜像
+#   基底: ubuntu:resolute + supervisor
+#   复用现成编译产物: sing-box (iflyelf/sing-box) + nginx/coraza (iflyelf/nginx)
+#   源码编译(始终最新): conduitvpn(住宅IP出口) + cloudflared(隧道入口)
 #   守护: supervisord (PID1) 统一管理全部进程, 进程间走 127.0.0.1 loopback
 # =============================================================================
 
@@ -15,8 +15,16 @@ ARG NGINX_IMAGE=iflyelf/nginx:latest
 FROM ${NGINX_IMAGE} AS nginxstage
 
 #############################
+#   Stage: singboxstage     #
+#   复用 iflyelf/sing-box 现成的 sing-box 编译产物, 不重新编译
+#   可通过 --build-arg SINGBOX_IMAGE=... 覆盖
+#############################
+ARG SINGBOX_IMAGE=iflyelf/sing-box:latest
+FROM ${SINGBOX_IMAGE} AS singboxstage
+
+#############################
 #   Stage: builder          #
-#   ubuntu:resolute + Go, 编译 sing-box / conduitvpn / cloudflared
+#   ubuntu:resolute + Go, 编译 conduitvpn / cloudflared (始终最新版)
 #############################
 FROM --platform=$BUILDPLATFORM ubuntu:resolute AS builder
 LABEL maintainer="iflyelf"
@@ -47,10 +55,7 @@ ENV CGO_ENABLED=$CGO_ENABLED
 ENV GOOS=$TARGETOS
 ENV GOARCH=$TARGETARCH
 
-# 版本: sing-box 锁定, cloudflared/conduitvpn 始终使用最新
-ARG SINGBOX_VERSION=v1.13.19
-ENV SINGBOX_VERSION=$SINGBOX_VERSION
-
+# 版本: cloudflared/conduitvpn 始终使用最新 (sing-box 复用现成镜像, 不在此编译)
 ARG PKG_DEPS="git curl wget ca-certificates build-essential pkg-config"
 ENV PKG_DEPS=$PKG_DEPS
 
@@ -69,22 +74,6 @@ RUN set -eux && \
     mkdir -pv $GOPATH/bin $GOPATH/src $GOPATH/pkg && \
     ln -sf /opt/go/bin/go /usr/bin/go && ln -sf /opt/go/bin/gofmt /usr/bin/gofmt && \
     go version
-
-# ***** 编译 sing-box (锁定版本) *****
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/opt/golang/pkg/mod \
-    set -eux && \
-    git clone -b $SINGBOX_VERSION --depth 1 --progress https://github.com/SagerNet/sing-box.git /src/sing-box && \
-    cd /src/sing-box && \
-    export COMMIT=$(git rev-parse --short HEAD) && \
-    export VERSION=$(go run ./cmd/internal/read_tag) && \
-    go mod download && \
-    mkdir -p /go/bin && \
-    go build -v -trimpath -tags 'with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api,with_tailscale,with_ccm,with_ocm,badlinkname,tfogo_checklinkname0' \
-        -o /go/bin/sing-box \
-        -ldflags "-s -buildid= -X \"github.com/sagernet/sing-box/constant.Version=$VERSION\" -checklinkname=0" \
-        ./cmd/sing-box && \
-    /go/bin/sing-box version
 
 # ***** 编译 conduitvpn (最新版, Go stdlib only) *****
 RUN --mount=type=cache,target=/root/.cache/go-build \
@@ -164,7 +153,9 @@ RUN --mount=type=cache,target=/var/lib/apt/,sharing=locked \
     locale-gen zh_CN.UTF-8 && localedef -f UTF-8 -i zh_CN zh_CN.UTF-8 || true
 
 # ***** 拷贝编译产物 *****
-COPY --from=builder /go/bin/sing-box    /usr/bin/sing-box
+# sing-box: 复用 iflyelf/sing-box 现成产物, 不重新编译
+COPY --from=singboxstage /usr/bin/sing-box /usr/bin/sing-box
+# conduitvpn / cloudflared: builder 阶段源码编译 (始终最新版)
 COPY --from=builder /go/bin/conduitvpn  /usr/bin/conduitvpn
 COPY --from=builder /go/bin/cloudflared /usr/bin/cloudflared
 
