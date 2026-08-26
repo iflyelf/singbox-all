@@ -1,0 +1,14 @@
+# 环境变量(含密码), 不入库
+.env
+
+# 运行时数据与日志
+data/
+logs/
+
+# 生成的链接与订阅
+links.txt
+sub.txt
+
+# SSL 私钥(当前未启用 SSL, 保留目录以备后用)
+conf/nginx/ssl/*.key
+conf/nginx/ssl/**/*.key
