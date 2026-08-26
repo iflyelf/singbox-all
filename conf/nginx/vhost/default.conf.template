@@ -4,20 +4,16 @@
 #           __VMESS_WSPATH__ / __TROJAN_WSPATH__
 #   NGINX_LISTEN=127.0.0.1 时仅本机(供 cloudflared 回源); 0.0.0.0 时开放公网直连
 #   NGINX_PORT 为对外监听端口, 端口冲突时可改 (须同步 cloudflared 回源地址)
+#
+#   WAF 说明: coraza 会缓冲请求/响应体做检测, 与 WebSocket 的无限双向流冲突,
+#   导致握手后数据帧死锁超时。因此仅在两个 WS 反代 location 内 coraza off;
+#   这两个路径是加密的 vmess/trojan 流, WAF 对加密流本就无法检测, 豁免无安全损失。
+#   静态站点及其他所有路径仍保留全局 coraza 防护。
 # =============================================================================
 
 # 上游后端服务 (同容器内 sing-box, 走 127.0.0.1)
 upstream vmess-splitflow  { server 127.0.0.1:__VMESS_PORT__ max_fails=0 fail_timeout=0; }
 upstream trojan-splitflow { server 127.0.0.1:__TROJAN_PORT__ max_fails=0 fail_timeout=0; }
-
-# 分流
-#   用 $uri 而非 $request_uri: $request_uri 含查询串, 客户端携带
-#   早期数据参数(如 ?ed=2048) 时会匹配失败; $uri 为解码后的纯路径.
-map $uri $svc_upstream {
-    default                "";
-    __VMESS_WSPATH__       vmess-splitflow;
-    __TROJAN_WSPATH__      trojan-splitflow;
-}
 
 server {
     listen __NGINX_LISTEN__:__NGINX_PORT__;
@@ -32,24 +28,26 @@ server {
     access_log logs/default.log combined;
     error_log  logs/default.log error;
 
-    # WebSocket 分流入口
-    #   命中 map -> 反代到对应 sing-box; 未命中 -> 418 内部跳转到 @static 走静态站点.
-    #   (if 内仅用 return, 属 nginx 官方认可的 "if is safe" 用法, 避开 if+proxy_pass 陷阱)
-    location / {
-        error_page 418 = @static;
-        recursive_error_pages on;
-
-        if ($svc_upstream = "") { return 418; }
-
+    # vmess WebSocket 反代 (豁免 WAF, 见文件头说明)
+    location = __VMESS_WSPATH__ {
+        coraza off;
         include websocket.conf;
-        proxy_pass http://$svc_upstream;
-
+        proxy_pass http://vmess-splitflow;
         access_log logs/xiaonuo.log combined;
         error_log  logs/xiaonuo.log error;
     }
 
-    # 静态站点回退
-    location @static {
+    # trojan WebSocket 反代 (豁免 WAF, 见文件头说明)
+    location = __TROJAN_WSPATH__ {
+        coraza off;
+        include websocket.conf;
+        proxy_pass http://trojan-splitflow;
+        access_log logs/xiaonuo.log combined;
+        error_log  logs/xiaonuo.log error;
+    }
+
+    # 静态站点 (保留全局 WAF 防护)
+    location / {
         try_files $uri $uri/ =404;
     }
 
