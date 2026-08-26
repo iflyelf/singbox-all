@@ -1,8 +1,9 @@
 # =============================================================================
 # vmess / trojan WebSocket 反向代理  (模板, 由 docker-entrypoint.sh 渲染)
-#   占位符: __NGINX_LISTEN__ / __VMESS_PORT__ / __TROJAN_PORT__
+#   占位符: __NGINX_LISTEN__ / __NGINX_PORT__ / __VMESS_PORT__ / __TROJAN_PORT__
 #           __VMESS_WSPATH__ / __TROJAN_WSPATH__
 #   NGINX_LISTEN=127.0.0.1 时仅本机(供 cloudflared 回源); 0.0.0.0 时开放公网直连
+#   NGINX_PORT 为对外监听端口, 端口冲突时可改 (须同步 cloudflared 回源地址)
 # =============================================================================
 
 # 上游后端服务 (同容器内 sing-box, 走 127.0.0.1)
@@ -19,7 +20,7 @@ map $uri $svc_upstream {
 }
 
 server {
-    listen __NGINX_LISTEN__:80;
+    listen __NGINX_LISTEN__:__NGINX_PORT__;
     server_name _;
     charset utf-8;
 

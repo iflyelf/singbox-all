@@ -7,7 +7,9 @@
 # =============================================================================
 set -e
 
-: "${TUNNEL_URL:=http://127.0.0.1:80}"
+# 回源地址: 默认指向本机 nginx, 端口跟随 NGINX_PORT (与 .env 保持一致)
+: "${NGINX_PORT:=80}"
+: "${TUNNEL_URL:=http://127.0.0.1:${NGINX_PORT}}"
 
 if [ -n "${TUNNEL_TOKEN}" ]; then
     echo "[cloudflared] 命名隧道模式 (token)"

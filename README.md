@@ -203,6 +203,16 @@ LINK_DOMAIN=你的服务器IP或域名
 
 重启后可直连 80 端口。此时端口暴露在公网，请自行配置防火墙。
 
+### 修改对外端口（端口冲突时）
+
+宿主机 80 端口被占用时，改用其他端口：
+
+```bash
+NGINX_PORT=8080
+```
+
+cloudflared 回源地址会自动跟随，无需额外配置；直连模式下客户端链接端口需相应调整。
+
 ### WAF 放行自定义域名
 
 使用自有域名时，把域名加入放行列表，避免 WAF 拦截 WebSocket 流量：
@@ -253,6 +263,7 @@ TROJAN_WSPATH=/xiaonuo/trojan
 | `LOCAL_PROXY_USER` / `LOCAL_PROXY_PASS` | proxy / — | 本地代理凭据（密码 ≥16 字符） |
 | `LOCAL_PROXY_HOST` / `LOCAL_PROXY_PORT` | 127.0.0.1 / 7928 | 本地代理监听 |
 | `NGINX_LISTEN` | 127.0.0.1 | nginx 监听地址，`0.0.0.0` 开放公网 |
+| `NGINX_PORT` | 80 | nginx 对外端口，冲突时可改，cloudflared 自动跟随 |
 | `NETWORK_MODE` | host | conduitvpn 路由模式，host 网络下须为 host |
 | `TUNNEL_TOKEN` | 空 | 留空走 quick tunnel，填值走命名隧道 |
 | `LINK_DOMAIN` | 空 | 留空自动抓取隧道域名，填值优先使用 |
