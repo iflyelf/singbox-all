@@ -186,6 +186,8 @@ COPY ["./conf/nginx/php.conf",       "/data/nginx/conf/php.conf"]
 COPY ["./conf/nginx/websocket.conf", "/data/nginx/conf/websocket.conf"]
 COPY ["./conf/nginx/waf.conf",       "/data/nginx/conf/waf.conf"]
 COPY ["./conf/nginx/vhost",          "/data/nginx/conf/vhost"]
+COPY ["./conf/nginx/https.conf.template", "/data/nginx/conf/https.conf.template"]
+COPY ["./conf/nginx/ssl",            "/data/nginx/conf/ssl"]
 # WAF: 仅覆盖自定义文件, 不动 owasp-crs/ 与 crs-setup.conf
 COPY ["./conf/nginx/waf/coraza.conf",             "/data/nginx/conf/waf/coraza.conf"]
 COPY ["./conf/nginx/waf/coraza-recommended.conf", "/data/nginx/conf/waf/coraza-recommended.conf"]

@@ -1,9 +1,17 @@
 # =============================================================================
 # vmess / trojan WebSocket 反向代理  (模板, 由 docker-entrypoint.sh 渲染)
-#   占位符: __NGINX_LISTEN__ / __NGINX_PORT__ / __VMESS_PORT__ / __TROJAN_PORT__
-#           __VMESS_WSPATH__ / __TROJAN_WSPATH__
+#   占位符: __NGINX_LISTEN__ / __NGINX_PORT__
+#           __VMESS_PORT__ / __TROJAN_PORT__ / __VMESS_WSPATH__ / __TROJAN_WSPATH__
+#           __HTTPS_INCLUDE__  由 entrypoint 按 NGINX_HTTPS_PORT 决定是否渲染 include
+#
 #   NGINX_LISTEN=127.0.0.1 时仅本机(供 cloudflared 回源); 0.0.0.0 时开放公网直连
-#   NGINX_PORT 为对外监听端口, 端口冲突时可改 (须同步 cloudflared 回源地址)
+#   NGINX_PORT       HTTP  监听端口
+#   NGINX_HTTPS_PORT HTTPS 监听端口 (0 表示不启用 HTTPS)
+#
+#   HTTPS 说明: 证书目录由 SSL_DOMAIN 环境变量决定 (默认 xiaonuo.live)。
+#   证书路径 conf/nginx/ssl/<SSL_DOMAIN>/*.pem/*.key (Cloudflare Origin CA 风格)。
+#   换域名: 修改 SSL_DOMAIN, 并把证书放到 conf/nginx/ssl/<新域名>/ 下。
+#   挂载覆盖: -v /host/ssl:/data/nginx/conf/ssl (无需重建镜像)。
 #
 #   WAF 说明: coraza 会缓冲请求/响应体做检测, 与 WebSocket 的无限双向流冲突,
 #   导致握手后数据帧死锁超时。因此仅在两个 WS 反代 location 内 coraza off;
@@ -16,7 +24,9 @@ upstream vmess-splitflow  { server 127.0.0.1:__VMESS_PORT__ max_fails=0 fail_tim
 upstream trojan-splitflow { server 127.0.0.1:__TROJAN_PORT__ max_fails=0 fail_timeout=0; }
 
 server {
+    # HTTP 监听
     listen __NGINX_LISTEN__:__NGINX_PORT__;
+__HTTPS_INCLUDE__
     server_name _;
     charset utf-8;
 

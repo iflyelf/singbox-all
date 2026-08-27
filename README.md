@@ -236,7 +236,7 @@ LINK_DOMAIN=你的固定域名
 3. 在面板给隧道添加 Public Hostname，指向 `http://127.0.0.1:80`
 4. 重启：`docker compose up -d`
 
-### 开放 80 端口直连（不经 Cloudflare）
+### 开放直连（不经 Cloudflare）
 
 编辑 `.env`：
 
@@ -245,17 +245,38 @@ NGINX_LISTEN=0.0.0.0
 LINK_DOMAIN=你的服务器IP或域名
 ```
 
-重启后可直连 80 端口。此时端口暴露在公网，请自行配置防火墙。
+重启后可直连。此时端口暴露在公网，请自行配置防火墙。
 
-### 修改对外端口（端口冲突时）
+### 修改对外端口（端口冲突或 Cloudflare 优化）
 
-宿主机 80 端口被占用时，改用其他端口：
+**HTTP 端口**（默认 80）：
 
 ```bash
 NGINX_PORT=8080
 ```
 
-cloudflared 回源地址会自动跟随，无需额外配置；直连模式下客户端链接端口需相应调整。
+**HTTPS 端口**（默认 0=不启用）：
+
+```bash
+NGINX_HTTPS_PORT=443
+```
+
+Cloudflare 支持的回源/代理端口:
+- **HTTP**: 80, 8080, 8880, 2052, 2082, 2086, 2095
+- **HTTPS**: 443, 2053, 2083, 2087, 2096, 8443
+
+cloudflared 隧道回源地址默认跟随 **HTTP 端口**，无需额外配置。
+
+**HTTPS 证书**：镜像自带 Cloudflare Origin CA 证书（`xiaonuo.live`，有效期至 2036 年）。换域名或自有证书时：
+
+```bash
+SSL_DOMAIN=你的域名
+# 证书放到 conf/nginx/ssl/<你的域名>/ 下, 文件名:
+#   <域名>.pem  <域名>.key  origin_ca_rsa_root.pem
+# 或挂载自有证书目录覆盖: -v /host/ssl:/data/nginx/conf/ssl
+```
+
+详见 `.env.example` 中 `HTTPS 证书` 章节。
 
 ### WAF 放行自定义域名
 
@@ -332,7 +353,10 @@ docker compose up -d --force-recreate
 | `LOCAL_PROXY_HOST` / `LOCAL_PROXY_PORT` | 127.0.0.1 / 7928          | 本地代理监听                                     |
 | `SINGBOX_FALLBACK`                        | none                      | `none` 只走住宅IP；`direct` 纯直连(本机IP)   |
 | `NGINX_LISTEN`                            | 127.0.0.1                 | nginx 监听地址，`0.0.0.0` 开放公网             |
-| `NGINX_PORT`                              | 80                        | nginx 对外端口，冲突时可改，cloudflared 自动跟随 |
+| `NGINX_PORT`                              | 80                        | HTTP 端口(Cloudflare: 80/8080/8880/2052/2082/2086/2095) |
+| `NGINX_HTTPS_PORT`                        | 0                         | HTTPS 端口(Cloudflare: 443/2053/2083/2087/2096/8443)，0=不启用 |
+| `SSL_DOMAIN`                              | xiaonuo.live              | HTTPS 证书目录名(证书路径 `ssl/<SSL_DOMAIN>/`) |
+| `SSL_VERIFY_CLIENT`                       | off                       | on 时启用 Cloudflare Authenticated Origin Pull |
 | `NETWORK_MODE`                            | host                      | conduitvpn 路由模式，host 网络下须为 host        |
 | `TUNNEL_TOKEN`                            | 空                        | 留空走 quick tunnel，填值走命名隧道              |
 | `LINK_DOMAIN`                             | 空                        | 隧道域名（host/sni），留空自动抓取，填值优先使用 |

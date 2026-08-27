@@ -50,6 +50,10 @@ services:
       - ./data:/data/conduitvpn:rw
       # nginx 访问与错误日志
       - ./logs/nginx:/data/nginx/logs:delegated
+      # HTTPS 证书: 挂载覆盖镜像内证书, 换证书/换域名无需重建镜像
+      #   目录结构 conf/nginx/ssl/<SSL_DOMAIN>/{<域名>.pem,<域名>.key,origin_ca_rsa_root.pem}
+      #   仅在 NGINX_HTTPS_PORT != 0 时生效; 不需要 HTTPS 可注释此行
+      - ./conf/nginx/ssl:/data/nginx/conf/ssl:ro
       # 与宿主机保持一致的时区
       - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
       - /etc/localtime:/etc/localtime:ro

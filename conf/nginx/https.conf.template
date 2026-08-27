@@ -1,0 +1,43 @@
+# =============================================================================
+# HTTPS 监听配置模板 (由 docker-entrypoint.sh 在 NGINX_HTTPS_PORT!=0 时渲染)
+#   参考模板: ssl/<域名>/<域名>.conf (Cloudflare Origin CA 风格)
+#
+#   占位符 (均由 entrypoint 依据环境变量渲染, 域名不写死):
+#     __NGINX_LISTEN__      监听地址
+#     __NGINX_HTTPS_PORT__  HTTPS 端口
+#     __SSL_CERT__          证书文件完整路径
+#     __SSL_KEY__           私钥文件完整路径
+#     __SSL_TRUSTED__       CA 根证书完整路径
+#     __SSL_CLIENT_CA_LINE__  Authenticated Origin Pull 配置行(未启用时为注释)
+#     __SSL_VERIFY_LINE__     ssl_verify_client 配置行(未启用时为注释)
+#
+#   换域名: 只需在 .env 修改 SSL_DOMAIN, 并把证书放到 conf/nginx/ssl/<新域名>/
+#   挂载覆盖: -v /host/ssl:/data/nginx/conf/ssl  或指定 SSL_BASE_DIR
+# =============================================================================
+listen __NGINX_LISTEN__:__NGINX_HTTPS_PORT__ ssl;
+listen [::]:__NGINX_HTTPS_PORT__ ssl;
+# 协商 HTTP/3
+add_header alt-svc 'h3-27=":__NGINX_HTTPS_PORT__"; ma=86400, h3-25=":__NGINX_HTTPS_PORT__"; ma=86400, h3-24=":__NGINX_HTTPS_PORT__"; ma=86400, h3-23=":__NGINX_HTTPS_PORT__"; ma=86400';
+# SSL 证书 (路径由环境变量渲染)
+ssl_certificate         __SSL_CERT__;
+ssl_certificate_key     __SSL_KEY__;
+ssl_trusted_certificate __SSL_TRUSTED__;
+# Cloudflare Authenticated Origin Pull (SSL_VERIFY_CLIENT=on 时启用)
+__SSL_CLIENT_CA_LINE__
+__SSL_VERIFY_LINE__
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers "TLS13-CHACHA20-POLY1305-SHA256:TLS13-AES-256-GCM-SHA384:TLS13-AES-128-GCM-SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";
+# 优先采取服务器算法
+ssl_prefer_server_ciphers on;
+# 会话缓存
+ssl_session_timeout 1d;
+ssl_session_cache shared:SSL:50m;
+ssl_session_tickets on;
+ssl_buffer_size 1400;
+resolver 1.1.1.1 1.0.0.1 valid=30s;
+resolver_timeout 5s;
+# 安全响应头
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+add_header X-Content-Type-Options "nosniff";
+add_header X-Frame-Options "DENY";
+add_header X-XSS-Protection "1; mode=block";
