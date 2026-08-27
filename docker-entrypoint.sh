@@ -157,16 +157,40 @@ if [ -f "${VHOST_TPL}" ]; then
         SSL_TRUSTED_PATH="${SSL_BASE_DIR}/${SSL_DOMAIN}/${SSL_TRUSTED_FILE}"
         SSL_CLIENT_CA_PATH="${SSL_BASE_DIR}/${SSL_DOMAIN}/${SSL_CLIENT_CA_FILE}"
 
-        # 证书文件缺失提前警告 (不阻止启动, 便于诊断)
-        for f in "${SSL_CERT_PATH}" "${SSL_KEY_PATH}"; do
-            [ -f "$f" ] || echo "[entrypoint] ⚠️  SSL 证书文件不存在: $f (HTTPS 将启动失败, 请检查挂载或 SSL_DOMAIN)"
-        done
+        # 证书或私钥缺失时: 自动生成自签名证书
+        # Cloudflare 边缘回源默认不校验源站证书, 自签名即可正常工作。
+        # 用户提供正式证书时挂载覆盖对应文件即可, 此逻辑不会覆盖已有文件。
+        if [ ! -f "${SSL_CERT_PATH}" ] || [ ! -f "${SSL_KEY_PATH}" ]; then
+            echo "[entrypoint] ⚠️  证书或私钥缺失, 自动生成自签名证书 (Cloudflare 回源默认不校验源站证书)"
+            # 优先写入证书所在目录; 只读挂载导致失败则回退到可写位置
+            SSL_GEN_DIR="${SSL_BASE_DIR}/${SSL_DOMAIN}"
+            if ! mkdir -p "${SSL_GEN_DIR}" 2>/dev/null || ! touch "${SSL_GEN_DIR}/.write_test" 2>/dev/null; then
+                # ssl 目录只读 (如 :ro 挂载), 改用运行时可写目录
+                SSL_GEN_DIR="/tmp/ssl-autogen/${SSL_DOMAIN}"
+                mkdir -p "${SSL_GEN_DIR}"
+                SSL_CERT_PATH="${SSL_GEN_DIR}/${SSL_CERT_FILE}"
+                SSL_KEY_PATH="${SSL_GEN_DIR}/${SSL_KEY_FILE}"
+                echo "[entrypoint] ssl 目录只读, 自签名证书写入: ${SSL_GEN_DIR}"
+            else
+                rm -f "${SSL_GEN_DIR}/.write_test"
+            fi
+            openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
+                -subj "/CN=${SSL_DOMAIN}" \
+                -addext "subjectAltName=DNS:${SSL_DOMAIN},DNS:*.${SSL_DOMAIN},DNS:localhost,IP:127.0.0.1" \
+                -keyout "${SSL_KEY_PATH}" \
+                -out    "${SSL_CERT_PATH}" >/dev/null 2>&1 \
+                || { echo "[entrypoint] ❌ openssl 生成自签名证书失败"; exit 1; }
+            # 自签名证书自成信任链, trusted 指向自身 (避免与不匹配的 CA 冲突)
+            SSL_TRUSTED_PATH="${SSL_CERT_PATH}"
+            echo "[entrypoint] ✓ 自签名证书已生成: ${SSL_CERT_PATH}"
+        fi
 
         # 可选: Cloudflare Authenticated Origin Pull
-        if [ "${SSL_VERIFY_CLIENT}" = "on" ]; then
+        if [ "${SSL_VERIFY_CLIENT}" = "on" ] && [ -f "${SSL_CLIENT_CA_PATH}" ]; then
             SSL_CLIENT_CA_LINE="ssl_client_certificate ${SSL_CLIENT_CA_PATH};"
             SSL_VERIFY_LINE="ssl_verify_client on;"
         else
+            [ "${SSL_VERIFY_CLIENT}" = "on" ] && echo "[entrypoint] ⚠️  SSL_VERIFY_CLIENT=on 但客户端CA不存在: ${SSL_CLIENT_CA_PATH}, 已回退为 off"
             SSL_CLIENT_CA_LINE="# ssl_client_certificate ${SSL_CLIENT_CA_PATH};"
             SSL_VERIFY_LINE="# ssl_verify_client on;"
         fi

@@ -134,6 +134,7 @@ ARG PKG_DEPS="\
     coreutils \
     gettext-base \
     openvpn \
+    openssl \
     libssl-dev \
     zlib1g-dev \
     libpcre2-dev \

@@ -262,6 +262,7 @@ NGINX_HTTPS_PORT=443
 ```
 
 Cloudflare 支持的回源/代理端口:
+
 - **HTTP**: 80, 8080, 8880, 2052, 2082, 2086, 2095
 - **HTTPS**: 443, 2053, 2083, 2087, 2096, 8443
 
@@ -341,25 +342,25 @@ docker compose up -d --force-recreate
 
 ## 六、配置项速查
 
-| 变量                                        | 默认值                    | 说明                                             |
-| ------------------------------------------- | ------------------------- | ------------------------------------------------ |
-| `VMESS_PORT` / `VMESS_WSPATH`           | 6601 /`/xiaonuo/vmess`  | vmess 端口与 WS 路径                             |
-| `VMESS_UUID`                              | —                        | vmess UUID，务必自行更换                         |
-| `TROJAN_PORT` / `TROJAN_WSPATH`         | 6602 /`/xiaonuo/trojan` | trojan 端口与 WS 路径                            |
-| `TROJAN_PWD`                              | —                        | trojan 密码                                      |
-| `UI_USER` / `UI_PASSWORD`               | admin / —                | 管理台账号密码（密码 ≥16 字符）                 |
-| `UI_HOST`                                 | 127.0.0.1                 | 管理台监听地址                                   |
-| `LOCAL_PROXY_USER` / `LOCAL_PROXY_PASS` | proxy / —                | 本地代理凭据（密码 ≥16 字符）                   |
-| `LOCAL_PROXY_HOST` / `LOCAL_PROXY_PORT` | 127.0.0.1 / 7928          | 本地代理监听                                     |
-| `SINGBOX_FALLBACK`                        | none                      | `none` 只走住宅IP；`direct` 纯直连(本机IP)   |
-| `NGINX_LISTEN`                            | 127.0.0.1                 | nginx 监听地址，`0.0.0.0` 开放公网             |
-| `NGINX_PORT`                              | 80                        | HTTP 端口(Cloudflare: 80/8080/8880/2052/2082/2086/2095) |
+| 变量                                        | 默认值                    | 说明                                                           |
+| ------------------------------------------- | ------------------------- | -------------------------------------------------------------- |
+| `VMESS_PORT` / `VMESS_WSPATH`           | 6601 /`/xiaonuo/vmess`  | vmess 端口与 WS 路径                                           |
+| `VMESS_UUID`                              | —                        | vmess UUID，务必自行更换                                       |
+| `TROJAN_PORT` / `TROJAN_WSPATH`         | 6602 /`/xiaonuo/trojan` | trojan 端口与 WS 路径                                          |
+| `TROJAN_PWD`                              | —                        | trojan 密码                                                    |
+| `UI_USER` / `UI_PASSWORD`               | admin / —                | 管理台账号密码（密码 ≥16 字符）                               |
+| `UI_HOST`                                 | 127.0.0.1                 | 管理台监听地址                                                 |
+| `LOCAL_PROXY_USER` / `LOCAL_PROXY_PASS` | proxy / —                | 本地代理凭据（密码 ≥16 字符）                                 |
+| `LOCAL_PROXY_HOST` / `LOCAL_PROXY_PORT` | 127.0.0.1 / 7928          | 本地代理监听                                                   |
+| `SINGBOX_FALLBACK`                        | none                      | `none` 只走住宅IP；`direct` 纯直连(本机IP)                 |
+| `NGINX_LISTEN`                            | 127.0.0.1                 | nginx 监听地址，`0.0.0.0` 开放公网                           |
+| `NGINX_PORT`                              | 80                        | HTTP 端口(Cloudflare: 80/8080/8880/2052/2082/2086/2095)        |
 | `NGINX_HTTPS_PORT`                        | 0                         | HTTPS 端口(Cloudflare: 443/2053/2083/2087/2096/8443)，0=不启用 |
-| `SSL_DOMAIN`                              | xiaonuo.live              | HTTPS 证书目录名(证书路径 `ssl/<SSL_DOMAIN>/`) |
-| `SSL_VERIFY_CLIENT`                       | off                       | on 时启用 Cloudflare Authenticated Origin Pull |
-| `NETWORK_MODE`                            | host                      | conduitvpn 路由模式，host 网络下须为 host        |
-| `TUNNEL_TOKEN`                            | 空                        | 留空走 quick tunnel，填值走命名隧道              |
-| `LINK_DOMAIN`                             | 空                        | 隧道域名（host/sni），留空自动抓取，填值优先使用 |
-| `PREFER_DOMAIN`                           | 空                        | 优选域名，填值后连接地址走 Cloudflare 优选 IP    |
-| `WAF_ALLOW_DOMAINS`                       | 空                        | WAF 放行域名，逗号分隔                           |
-| `HY2_PORT`                                | 0                         | hysteria2，隧道不支持 UDP 故关闭                 |
+| `SSL_DOMAIN`                              | xiaonuo.live              | HTTPS 证书目录名(证书路径`ssl/<SSL_DOMAIN>/`)                |
+| `SSL_VERIFY_CLIENT`                       | off                       | on 时启用 Cloudflare Authenticated Origin Pull                 |
+| `NETWORK_MODE`                            | host                      | conduitvpn 路由模式，host 网络下须为 host                      |
+| `TUNNEL_TOKEN`                            | 空                        | 留空走 quick tunnel，填值走命名隧道                            |
+| `LINK_DOMAIN`                             | 空                        | 隧道域名（host/sni），留空自动抓取，填值优先使用               |
+| `PREFER_DOMAIN`                           | 空                        | 优选域名，填值后连接地址走 Cloudflare 优选 IP                  |
+| `WAF_ALLOW_DOMAINS`                       | 空                        | WAF 放行域名，逗号分隔                                         |
+| `HY2_PORT`                                | 0                         | hysteria2，隧道不支持 UDP 故关闭                               |
