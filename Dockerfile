@@ -117,6 +117,10 @@ ENV NGINX_DIR=$NGINX_DIR
 # 它们同时提供 nginx/coraza 所需的运行库, 避免使用 resolute 中不存在的旧包名。
 ARG PKG_DEPS="\
     bash \
+    bash-completion \
+    zsh \
+    vim \
+    git \
     ca-certificates \
     tzdata \
     curl \
@@ -156,7 +160,12 @@ RUN set -eux && \
     apt-get -qqy --no-install-recommends autoclean && \
     rm -rf /var/lib/apt/lists/* && \
     ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone && \
-    ( locale-gen zh_CN.UTF-8 && localedef -f UTF-8 -i zh_CN zh_CN.UTF-8 || true )
+    ( locale-gen zh_CN.UTF-8 && localedef -f UTF-8 -i zh_CN zh_CN.UTF-8 || true ) && \
+    # 安装 oh-my-zsh 并将 root 默认 shell 改为 zsh (网络失败不阻断构建)
+    ( sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" --unattended || true ) && \
+    sed -i -e "s#root:/bin/ash#root:/bin/zsh#" -e "s#root:/bin/bash#root:/bin/zsh#" /etc/passwd && \
+    # vim 默认配置存在时关闭 mouse (不同版本路径不同, 用 find 定位)
+    ( find /usr/share/vim -name defaults.vim -exec sed -i -e 's/mouse=/mouse-=/g' {} + || true )
 
 # ***** 拷贝编译产物 *****
 # sing-box: 复用 iflyelf/sing-box 现成产物, 不重新编译
