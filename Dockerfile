@@ -207,6 +207,8 @@ COPY ["./conf/nginx/waf/render-waf.sh",           "/data/nginx/conf/waf/render-w
 RUN set -eux && \
     # 注册 libcoraza.so 到动态链接库缓存
     ldconfig && \
+    # 移除基础镜像自带的 cache.conf (proxy_cache 会破坏 WebSocket 长连接)
+    rm -f /data/nginx/conf/cache.conf && \
     # nginx 用户 (nginx.conf 使用 user nginx nginx)
     addgroup --system --quiet nginx && \
     adduser --quiet --system --disabled-login --ingroup nginx --home /data/nginx --no-create-home nginx && \
