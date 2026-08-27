@@ -190,7 +190,6 @@ COPY ["./www", "/www"]
 # nginx 配置: 仅覆盖本项目维护的文件, 保留镜像内 owasp-crs 规则集与 crs-setup.conf
 COPY ["./conf/nginx/nginx.conf",     "/data/nginx/conf/nginx.conf"]
 COPY ["./conf/nginx/gzip.conf",      "/data/nginx/conf/gzip.conf"]
-COPY ["./conf/nginx/cache.conf",     "/data/nginx/conf/cache.conf"]
 COPY ["./conf/nginx/proxy.conf",     "/data/nginx/conf/proxy.conf"]
 COPY ["./conf/nginx/php.conf",       "/data/nginx/conf/php.conf"]
 COPY ["./conf/nginx/websocket.conf", "/data/nginx/conf/websocket.conf"]

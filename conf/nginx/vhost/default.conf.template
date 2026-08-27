@@ -30,8 +30,6 @@ __HTTPS_INCLUDE__
     server_name _;
     charset utf-8;
 
-    include cache.conf;
-
     root /www;
     index index.html index.htm;
 
