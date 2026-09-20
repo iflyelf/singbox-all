@@ -364,3 +364,46 @@ docker compose up -d --force-recreate
 | `PREFER_DOMAIN`                           | 空                        | 优选域名，填值后连接地址走 Cloudflare 优选 IP                  |
 | `WAF_ALLOW_DOMAINS`                       | 空                        | WAF 放行域名，逗号分隔                                         |
 | `HY2_PORT`                                | 0                         | hysteria2，隧道不支持 UDP 故关闭                               |
+
+---
+
+## 七、构建与镜像
+
+本项目采用**多阶段构建**，运行镜像基于 `iflyelf/ubuntu:lite`，体积更小。
+
+| 阶段 | 基础镜像 | 作用 |
+| --- | --- | --- |
+| nginxstage | `iflyelf/nginx:latest` | 复用现成的 nginx + Coraza WAF 编译产物 |
+| singboxstage | `iflyelf/sing-box:latest` | 复用现成的 sing-box 编译产物 |
+| builder | `iflyelf/ubuntu:latest` | 已预装 Go 与完整工具链，源码编译 conduitvpn 与 cloudflared 静态二进制 |
+| runtime | `iflyelf/ubuntu:lite` | 仅拷贝各阶段产物 + 按需安装 supervisor / openvpn / nginx 运行库 |
+
+运行阶段按需安装：`supervisor`（进程守护）、`openvpn`（conduitvpn 依赖）、`iptables`、`python3`、`gettext-base`（envsubst 渲染模板）、`adduser`，以及 nginx 运行库 `libpcre2-8-0` / `zlib1g` / `libgd3` / `libxml2-16` / `libaio1t64`。运行阶段环境变量：`PATH` 追加 `${NGINX_DIR}/sbin`，`LD_LIBRARY_PATH=/usr/local/lib`（加载 LuaJIT / libcoraza 共享库），入口使用 tini。
+
+Go 编译采用从各项目 `go.mod` 读取声明版本并用 `GOTOOLCHAIN` 精确锁定的方式，避免基础镜像 Go 版本过高导致的编译不兼容。
+
+### 镜像获取
+
+```bash
+# Docker Hub（国外）
+docker pull iflyelf/singbox-all:latest
+
+# 华为云 SWR（国内推荐）
+docker pull swr.cn-east-3.myhuaweicloud.com/iflyelf/singbox-all:latest
+```
+
+### 自动构建
+
+推送 `Dockerfile`、`conf/**`、`docker-entrypoint.sh` 或工作流变更、手动触发、Star 仓库，或**中国时间每天早 5 点**（UTC 21:00）定时触发 [GitHub Actions](./.github/workflows/docker-publish.yml)，构建并推送到 Docker Hub 与华为云 SWR。同一分支仅保留最新一次构建（`concurrency` + `cancel-in-progress`）。
+
+### VERSION 自动更新
+
+[update-version.yml](./.github/workflows/update-version.yml) 每天中国时间早 4 点调用 GitHub API 获取 cloudflared 与 conduitvpn 最新**正式版**（`/releases/latest` 自动排除 alpha/beta/rc 并二次校验），有更新则自动提交并触发镜像重建。sing-box 与 nginx 通过 `:latest` 现成镜像随其上游更新。
+
+### 所需 Secrets
+
+| Secret | 说明 |
+| --- | --- |
+| `DOCKER_USERNAME` / `DOCKER_PASSWORD` | Docker Hub 凭据 |
+| `SWR_USERNAME` / `SWR_PASSWORD` | 华为云 SWR 登录凭据 |
+| `SWR_AK` / `SWR_SK` | 华为云账号 AK/SK，用于将 SWR 仓库设为公开（可选） |

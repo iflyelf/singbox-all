@@ -1,0 +1,111 @@
+#=================================================
+# https://github.com/iflyelf/singbox-all
+# Lisence: MIT
+# Author: iflyelf
+# Blog: https://www.xiaonuo.live
+#=================================================
+
+name: 更新 cloudflared/conduitvpn 版本号
+
+# 设置触发条件
+on:
+  # 定时检查(中国时间每天早4点, UTC 前一天20点; 早于镜像构建的5点)
+  schedule:
+    - cron: '0 20 * * *'
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'update cloudflared/conduitvpn version'
+        required: false
+        default: 'manual check'
+
+# 同一分支仅保留最新一次检查
+concurrency:
+  group: update-version-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 检查并更新版本号
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -euo pipefail
+
+        # 取 GitHub 仓库最新正式版 tag(/releases/latest 自动排除 prerelease)
+        # 二次校验排除 alpha/beta/rc 等不稳定标识
+        gh_latest_stable() {
+          local repo="$1" tag
+          tag=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null \
+            | jq -r '.tag_name // empty')
+          if echo "$tag" | grep -qiE '(alpha|beta|rc|dev|test|preview|snapshot)'; then
+            tag=""
+          fi
+          echo "$tag"
+        }
+
+        DOCKERFILE=Dockerfile
+        CHANGED=0
+        SUMMARY=""
+
+        try_update() {
+          local arg="$1"; local latest="$2"
+          [ -z "$latest" ] && { echo "  [$arg] 获取最新稳定版失败, 跳过"; return; }
+          local current
+          current=$(grep -oP "ARG ${arg}=\K.*" "$DOCKERFILE" | head -1 || true)
+          [ -z "$current" ] && { echo "  [$arg] Dockerfile 中未找到, 跳过"; return; }
+          if [ "$current" = "$latest" ]; then
+            echo "  [$arg] 已是最新 ($current)"
+          else
+            echo "  [$arg] 更新: $current => $latest"
+            sed -i "s|^ARG ${arg}=.*|ARG ${arg}=${latest}|" "$DOCKERFILE"
+            CHANGED=1
+            SUMMARY="${SUMMARY}\n- ${arg}: ${current} => ${latest}"
+          fi
+        }
+
+        echo "===== 检查 cloudflared / conduitvpn 最新稳定版 ====="
+        try_update CLOUDFLARED_VERSION "$(gh_latest_stable cloudflare/cloudflared)"
+        try_update CONDUITVPN_VERSION  "$(gh_latest_stable sarices/conduitvpn)"
+
+        echo ""
+        if [ "$CHANGED" = "1" ]; then
+          echo "检测到版本更新:"
+          echo -e "$SUMMARY"
+          echo "SUMMARY<<EOF" >> "$GITHUB_ENV"
+          echo -e "$SUMMARY" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+          echo "CHANGED=1" >> "$GITHUB_ENV"
+        else
+          echo "所有版本均为最新, 无需更新"
+          echo "CHANGED=0" >> "$GITHUB_ENV"
+        fi
+
+    - name: 提交更新
+      if: env.CHANGED == '1'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add Dockerfile
+        git commit -m "chore: 自动更新 cloudflared/conduitvpn 版本号${SUMMARY}"
+        git push
+
+    - name: 删除旧的GitHub-workflow
+      uses: Mattraks/delete-workflow-runs@main
+      with:
+        repository: ${{ github.repository }}
+        retain_days: 1
+        keep_minimum_runs: 3    #保留多少个workflow不删除

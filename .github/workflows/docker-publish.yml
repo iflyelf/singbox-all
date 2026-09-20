@@ -7,6 +7,12 @@
 
 name: 自动编译并上传镜像
 
+# 镜像推送目标（华为云 SWR: 国内可访问, 替代 docker.io）
+# 组织名称可直接修改, 凭据通过 Secrets: SWR_USERNAME / SWR_PASSWORD
+env:
+  SWR_REGISTRY: swr.cn-east-3.myhuaweicloud.com
+  SWR_ORGANIZATION: iflyelf
+
 # 设置触发条件
 on:
   # 编辑文件触发开始编译
@@ -15,6 +21,7 @@ on:
       - 'Dockerfile'
       - 'docker-entrypoint.sh'
       - 'conf/**'
+      - '.github/workflows/docker-publish.yml'
   # 手动触发工作流
   workflow_dispatch:
     inputs:
@@ -22,19 +29,25 @@ on:
         description: 'build singbox-all'
         required: true
         default: 'build singbox-all'
-  # 定时触发编译(每天早5点, 拉取 cloudflared/conduitvpn 最新版重新构建)
-  #schedule:
-  #   - cron: '0 21 * * *'
+  # 定时触发编译(中国时间每天早5点, 拉取 cloudflared/conduitvpn 最新版重新构建)
+  schedule:
+    - cron: '0 21 * * *'
   # 点☆Star触发开始编译
   watch:
      types: [started]
+
+# 同一分支仅保留最新一次构建：快速连续提交时自动取消旧构建，
+# 避免多个多架构（QEMU）构建并发堆积、互相拖慢导致镜像迟迟不更新。
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: true
 
  # 任务集
 jobs:
   build:
     # 选择虚拟环境
     runs-on: ubuntu-latest
-    if: github.event.repository.owner.id == github.event.sender.id
+    if: github.event_name == 'schedule' || github.event.repository.owner.id == github.event.sender.id
     strategy:
       fail-fast: false
       matrix:
@@ -78,21 +91,74 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
+    - name: 登录华为云 SWR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.SWR_REGISTRY }}
+        username: ${{ secrets.SWR_USERNAME }}
+        password: ${{ secrets.SWR_PASSWORD }}
+
     - name: 构建镜像并发布
       uses: docker/build-push-action@v6
+      # 华为云 SWR 不支持 OCI media types 与证明清单(attestation)，
+      # 否则报 "Invalid image, fail to parse 'manifest.json'"。
+      # 关闭 provenance/sbom 并输出 Docker 媒体类型以兼容 SWR。
       with:
         context: .
         file: ./Dockerfile
         platforms: linux/amd64,linux/arm64
         push: true
+        provenance: false
+        sbom: false
+        outputs: type=image,oci-mediatypes=false
         build-args: |
           NGINX_IMAGE=${{ secrets.DOCKER_USERNAME }}/nginx:latest
           SINGBOX_IMAGE=${{ secrets.DOCKER_USERNAME }}/sing-box:latest
-        tags: ${{ secrets.DOCKER_USERNAME }}/singbox-all:${{ matrix.DOCKER_TAG }}
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/singbox-all:${{ matrix.DOCKER_TAG }}
+          ${{ env.SWR_REGISTRY }}/${{ env.SWR_ORGANIZATION }}/singbox-all:${{ matrix.DOCKER_TAG }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # 华为云 SWR 镜像仓库默认私有，push 后调用 SWR API 设为公开
+    # 需 Secrets: SWR_AK / SWR_SK（华为云账号 AK/SK，具备 swr:repo:updateRepo 权限）
+    - name: 设置 SWR 镜像为公开
+      env:
+        CLOUD_SDK_AK: ${{ secrets.SWR_AK }}
+        CLOUD_SDK_SK: ${{ secrets.SWR_SK }}
+        SWR_REGION: cn-east-3
+        SWR_ORGANIZATION: ${{ env.SWR_ORGANIZATION }}
+      run: |
+        if [ -z "$CLOUD_SDK_AK" ] || [ -z "$CLOUD_SDK_SK" ]; then
+          echo "未配置 SWR_AK / SWR_SK，跳过设置公开"
+          exit 0
+        fi
+        pip install --quiet huaweicloudsdkcore huaweicloudsdkswr
+        python - <<'PY'
+        import os
+        from huaweicloudsdkcore.auth.credentials import BasicCredentials
+        from huaweicloudsdkswr.v2.region.swr_region import SwrRegion
+        from huaweicloudsdkswr.v2 import SwrClient
+        from huaweicloudsdkswr.v2.model import UpdateRepoRequest, UpdateRepoRequestBody
+
+        client = SwrClient.new_builder() \
+            .with_credentials(BasicCredentials(os.environ["CLOUD_SDK_AK"], os.environ["CLOUD_SDK_SK"])) \
+            .with_region(SwrRegion.value_of(os.environ["SWR_REGION"])) \
+            .build()
+
+        namespace = os.environ["SWR_ORGANIZATION"]
+        for repository in ["singbox-all"]:
+            req = UpdateRepoRequest()
+            req.namespace = namespace
+            req.repository = repository
+            req.body = UpdateRepoRequestBody(is_public=True)
+            client.update_repo(req)
+            print(f"✅ 已设为公开: {namespace}/{repository}")
+        PY
 
     - name: 删除旧的GitHub-workflow
       uses: Mattraks/delete-workflow-runs@main
       with:
         repository: ${{ github.repository }}
         retain_days: 1
-        keep_minimum_runs: 0    #保留多少个workflow不删除
+        keep_minimum_runs: 3    #保留多少个workflow不删除
