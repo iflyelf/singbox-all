@@ -65,11 +65,14 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     git clone -b ${CONDUITVPN_VERSION} --depth 1 --progress https://github.com/sarices/conduitvpn.git /src/conduitvpn && \
     cd /src/conduitvpn && \
     GOVER=$(grep -oP '^go \K[0-9]+\.[0-9]+(\.[0-9]+)?' go.mod | head -1) && \
-    export GOTOOLCHAIN=go${GOVER} && \
+    # 规范化为合法工具链名: go.mod 的 major.minor(如 1.22) 需补 .0 才是有效工具链版本
+    case "$GOVER" in *.*.*) GOTOOLCHAIN=go${GOVER} ;; *.*) GOTOOLCHAIN=go${GOVER}.0 ;; esac && \
+    export GOTOOLCHAIN && \
     echo "conduitvpn 要求 Go ${GOVER}, 锁定 GOTOOLCHAIN=${GOTOOLCHAIN}" && \
     go version && \
     go build -v -trimpath -ldflags "-s -w" -o /go/bin/conduitvpn ./cmd/conduitvpn && \
-    /go/bin/conduitvpn --help >/dev/null 2>&1 || true
+    # 校验产物存在(不加 || true, 编译失败必须让构建失败)
+    test -x /go/bin/conduitvpn
 
 # ***** 编译 cloudflared *****
 RUN --mount=type=cache,target=/root/.cache/go-build \
@@ -78,13 +81,16 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     git clone -b ${CLOUDFLARED_VERSION} --depth 1 --progress https://github.com/cloudflare/cloudflared.git /src/cloudflared && \
     cd /src/cloudflared && \
     GOVER=$(grep -oP '^go \K[0-9]+\.[0-9]+(\.[0-9]+)?' go.mod | head -1) && \
-    export GOTOOLCHAIN=go${GOVER} && \
+    # 规范化为合法工具链名: go.mod 的 major.minor(如 1.26) 需补 .0 才是有效工具链版本
+    case "$GOVER" in *.*.*) GOTOOLCHAIN=go${GOVER} ;; *.*) GOTOOLCHAIN=go${GOVER}.0 ;; esac && \
+    export GOTOOLCHAIN && \
     echo "cloudflared 要求 Go ${GOVER}, 锁定 GOTOOLCHAIN=${GOTOOLCHAIN}" && \
     go version && \
     go build -v -trimpath \
         -ldflags "-s -w -X main.Version=${CLOUDFLARED_VERSION}" \
         -o /go/bin/cloudflared ./cmd/cloudflared && \
-    /go/bin/cloudflared --version || true
+    # 校验产物存在(不加 || true, 编译失败必须让构建失败)
+    test -x /go/bin/cloudflared
 
 
 ##########################################
